@@ -42,18 +42,24 @@ if "logged_in" not in st.session_state:
 # ---------------------
 class Home:
     def __init__(self, login, register, find_pw):
+        self.login = login
+        self.register = register
+        self.find_pw = find_pw
+
+    def run(self):
         st.title("🏠 홈 페이지")
         if st.session_state.get("logged_in"):
             st.success(f"{st.session_state.get('user_email')}님 환영합니다.")
 
         st.markdown("""
         이 앱은 두 개의 데이터를 탐색합니다:
-        
+
         - **자전거 대여 데이터 (bike sharing)**: EDA 탭에서 확인 가능
         - **인구 변화 데이터 (population_trends.csv)**: EDA 탭에서 업로드 후 분석 가능
 
         👉 상단 메뉴에서 EDA를 선택하고, population_trends.csv를 업로드하여 분석을 시작하세요.
         """)
+
 
 # ---------------------
 # 로그인 페이지 클래스
@@ -198,6 +204,9 @@ class Logout:
 
 class EDA:
     def __init__(self):
+        pass
+
+    def run(self):
         st.title("📊 지역별 인구 분석 EDA")
 
         file = st.file_uploader("population_trends.csv 업로드", type="csv")
@@ -215,12 +224,10 @@ class EDA:
             with tab1:
                 st.header("🔍 기초 통계 및 데이터 정보")
                 st.subheader("📌 데이터프레임 구조")
-                buffer = st.empty()
-                with st.spinner("로딩 중..."):
-                    import io
-                    buf = io.StringIO()
-                    df.info(buf=buf)
-                    buffer.text(buf.getvalue())
+                import io
+                buf = io.StringIO()
+                df.info(buf=buf)
+                st.text(buf.getvalue())
                 st.subheader("📊 요약 통계")
                 st.dataframe(df.describe())
                 st.subheader("결측치 및 중복 확인")
@@ -260,7 +267,6 @@ class EDA:
                 ax1.set_xlabel("Change (k)")
                 st.pyplot(fig1)
 
-                # 변화율
                 rate = regions.groupby('지역').apply(
                     lambda x: (x.sort_values('연도').iloc[-1]['인구'] - x.sort_values('연도').iloc[-5]['인구']) /
                               x.sort_values('연도').iloc[-5]['인구'] * 100
@@ -289,6 +295,7 @@ class EDA:
                 ax.set_title("Population by Region Over Time")
                 ax.set_ylabel("Population")
                 st.pyplot(fig)
+
 
 
 # ---------------------

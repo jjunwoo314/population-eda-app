@@ -306,10 +306,10 @@ Page_EDA      = st.Page(EDA,      title="EDA",     icon="📊", url_path="eda")
 # 네비게이션 실행
 # ---------------------
 PAGES = {
-    "Home": Home,
-    "EDA": EDA,
-    # Login, Register, FindPassword 등 페이지는 여기서 빼두기
+    "Home": lambda: Home(login_page, register_page, findpw_page),
+    "EDA": lambda: EDA(),
 }
+
 
 st.sidebar.title("Navigation")
 selection = st.sidebar.radio("Go to", list(PAGES.keys()))

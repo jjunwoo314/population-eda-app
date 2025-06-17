@@ -217,6 +217,11 @@ class EDA:
                 df.info(buf=buffer)
                 st.text(buffer.getvalue())
 
+                st.subheader("❗ 결측치 및 중복 확인")
+                st.write("결측치 개수:")
+                st.dataframe(df.isnull().sum())
+                st.write("중복 행 개수:", df.duplicated().sum())
+
             with tab2:
                 national = df[df['지역'] == '전국']
                 fig, ax = plt.subplots()

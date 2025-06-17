@@ -41,16 +41,20 @@ if "logged_in" not in st.session_state:
 # 홈 페이지 클래스
 # ---------------------
 class Home:
-    def __init__(self, *args, **kwargs):
-        pass  # 기존 내용 제거하거나 비워두기
+    def __init__(self, login, register, find_pw):
+        st.title("🏠 홈 페이지")
+        if st.session_state.get("logged_in"):
+            st.success(f"{st.session_state.get('user_email')}님 환영합니다.")
 
-    def run(self):
-        st.title("🏠 Population Analysis App (No Login Needed)")
         st.markdown("""
-        This app analyzes population trends using population_trends.csv.
+        이 앱은 두 개의 데이터를 탐색합니다:
+        
+        - **자전거 대여 데이터 (bike sharing)**: EDA 탭에서 확인 가능
+        - **인구 변화 데이터 (population_trends.csv)**: EDA 탭에서 업로드 후 분석 가능
 
-        📌 Go to the **EDA** tab to upload and analyze the data.
+        👉 상단 메뉴에서 EDA를 선택하고, population_trends.csv를 업로드하여 분석을 시작하세요.
         """)
+
 # ---------------------
 # 로그인 페이지 클래스
 # ---------------------
@@ -191,103 +195,98 @@ class Logout:
 # ---------------------
 # EDA 페이지 클래스 (기존 요청사항 유지)
 # ---------------------
+
 class EDA:
     def __init__(self):
-        pass  # constructor 비워두기
+        st.title("📊 지역별 인구 분석 EDA")
 
-    def run(self):
-        st.title("📊 Population Trend EDA")
-
-        file = st.file_uploader("Upload population_trends.csv", type=["csv"])
+        file = st.file_uploader("population_trends.csv 업로드", type="csv")
         if file:
             df = pd.read_csv(file)
+
+            # 기본 전처리
             df.replace('-', 0, inplace=True)
-            df[['인구', '출생아수(명)', '사망자수(명)']] = df[['인구','출생아수(명)','사망자수(명)']].astype(int)
+            df[['인구', '출생아수(명)', '사망자수(명)']] = df[['인구', '출생아수(명)', '사망자수(명)']].astype(int)
 
             tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                "Summary", "Trend", "Regional", "Change", "Visualization"
+                "기초 통계", "연도별 추이", "지역별 분석", "변화량 분석", "시각화"
             ])
 
             with tab1:
-                st.subheader("🔍 Summary Statistics")
+                st.header("🔍 기초 통계 및 데이터 정보")
+                st.subheader("📌 데이터프레임 구조")
+                buffer = st.empty()
+                with st.spinner("로딩 중..."):
+                    import io
+                    buf = io.StringIO()
+                    df.info(buf=buf)
+                    buffer.text(buf.getvalue())
+                st.subheader("📊 요약 통계")
                 st.dataframe(df.describe())
-
-                st.subheader("🧾 Data Structure")
-                buffer = io.StringIO()
-                df.info(buf=buffer)
-                st.text(buffer.getvalue())
+                st.subheader("결측치 및 중복 확인")
+                st.write(f"- 결측치 총합: {df.isnull().sum().sum()}개")
+                st.write(f"- 중복 행 수: {df.duplicated().sum()}개")
 
             with tab2:
-                national = df[df['지역'] == '전국']
+                st.header("📈 연도별 전국 인구 추이")
+                total = df[df['지역'] == '전국']
                 fig, ax = plt.subplots()
-                sns.lineplot(data=national, x='연도', y='인구', ax=ax)
-                ax.set_title("National Population Trend")
+                sns.lineplot(x='연도', y='인구', data=total, marker='o', ax=ax)
+
+                recent = total.sort_values('연도').tail(4)
+                delta = (recent['인구'].diff().iloc[-3:]).mean()
+                last_year = recent['연도'].iloc[-1]
+                predicted = recent['인구'].iloc[-1] + (2035 - last_year) * delta
+
+                ax.axhline(predicted, ls='--', color='red', label=f'2035 예측: {int(predicted):,}')
+                ax.legend()
+                ax.set_title("Population Trend")
                 ax.set_xlabel("Year")
                 ax.set_ylabel("Population")
-
-                recent = national.sort_values('연도').tail(3)
-                avg_net = (recent['출생아수(명)'] - recent['사망자수(명)']).mean()
-                last_year = national['연도'].max()
-                projected_2035 = national['인구'].iloc[-1] + avg_net * (2035 - last_year)
-                ax.plot(2035, projected_2035, 'ro')
-                ax.text(2035, projected_2035, f"2035: {int(projected_2035):,}", color='red')
                 st.pyplot(fig)
 
             with tab3:
-                latest_year = df['연도'].max()
-                past_year = latest_year - 5
+                st.header("📍 최근 5년 지역별 인구 변화량")
+                regions = df[df['지역'] != '전국']
+                change = regions.groupby('지역').apply(
+                    lambda x: x.sort_values('연도').iloc[-1]['인구'] - x.sort_values('연도').iloc[-5]['인구']
+                ).sort_values(ascending=False)
 
-                latest = df[df['연도'] == latest_year]
-                past = df[df['연도'] == past_year]
-                merged = latest.merge(past, on='지역', suffixes=('_latest','_past'))
-                merged = merged[merged['지역'] != '전국']
-                merged['change'] = merged['인구_latest'] - merged['인구_past']
-                merged['change_rate'] = merged['change'] / merged['인구_past'] * 100
-                # 지역명은 한글로 유지하거나 영어로 변경 가능
-                merged['region_en'] = merged['지역']
+                fig1, ax1 = plt.subplots(figsize=(10, 8))
+                sns.barplot(x=change.values / 1000, y=change.index, ax=ax1)
+                for i, val in enumerate(change.values):
+                    ax1.text(val / 1000, i, f'{int(val):,}', va='center')
+                ax1.set_title("Top Region Population Change (5yrs)")
+                ax1.set_xlabel("Change (k)")
+                st.pyplot(fig1)
 
-                top_change = merged.sort_values('change', ascending=False)
+                # 변화율
+                rate = regions.groupby('지역').apply(
+                    lambda x: (x.sort_values('연도').iloc[-1]['인구'] - x.sort_values('연도').iloc[-5]['인구']) /
+                              x.sort_values('연도').iloc[-5]['인구'] * 100
+                ).sort_values(ascending=False)
 
-                fig, ax = plt.subplots(figsize=(10,8))
-                sns.barplot(data=top_change, x='change', y='region_en', ax=ax)
-                ax.set_title("Population Change by Region (5 years)")
-                ax.set_xlabel("Change (thousands)")
-                for container in ax.containers:
-                    ax.bar_label(container, fmt='%.0f', label_type='edge')
-                st.pyplot(fig)
-
-                fig2, ax2 = plt.subplots(figsize=(10,8))
-                sns.barplot(data=top_change, x='change_rate', y='region_en', ax=ax2)
-                ax2.set_title("Population Change Rate (%)")
+                fig2, ax2 = plt.subplots(figsize=(10, 8))
+                sns.barplot(x=rate.values, y=rate.index, ax=ax2)
+                for i, val in enumerate(rate.values):
+                    ax2.text(val, i, f'{val:.1f}%', va='center')
+                ax2.set_title("Top Region Population Change Rate (%)")
                 ax2.set_xlabel("Change Rate (%)")
-                for container in ax2.containers:
-                    ax2.bar_label(container, fmt='%.2f', label_type='edge')
                 st.pyplot(fig2)
 
-                st.markdown("""
-                - Above: Absolute population change over 5 years  
-                - Below: Percentage change based on population 5 years ago
-                """)
-
             with tab4:
-                df_diff = df[df['지역'] != '전국'].sort_values(['지역','연도'])
-                df_diff['증감'] = df_diff.groupby('지역')['인구'].diff()
-                top100 = df_diff.sort_values('증감', ascending=False).head(100)
-
-                styled = top100[['연도','지역','인구','증감']].style.background_gradient(
-                    subset=['증감'], cmap='RdBu_r').format({
-                        '인구': '{:,}',
-                        '증감': '{:+,}'
-                    })
-                st.subheader("📈 Top 100 Population Changes")
+                st.header("📊 증감률 상위 사례")
+                df['증감'] = df.groupby('지역')['인구'].diff()
+                top100 = df[df['지역'] != '전국'].sort_values('증감', ascending=False).head(100)
+                styled = top100.style.background_gradient(subset=['증감'], cmap='RdBu').format({'증감': '{:,.0f}'})
                 st.dataframe(styled)
 
             with tab5:
-                pivot = df.pivot_table(index='지역', columns='연도', values='인구').drop('전국',errors='ignore').fillna(0)
-                fig, ax = plt.subplots(figsize=(12,6))
-                pivot.T.plot.area(ax=ax, colormap='tab20')
-                ax.set_title("Regional Population Stacked Trend")
-                ax.set_xlabel("Year")
+                st.header("🗺️ 지역별 연도별 인구 누적 영역그래프")
+                pivot = df[df['지역'] != '전국'].pivot(index='연도', columns='지역', values='인구')
+                fig, ax = plt.subplots(figsize=(12, 6))
+                pivot.plot.area(ax=ax)
+                ax.set_title("Population by Region Over Time")
                 ax.set_ylabel("Population")
                 st.pyplot(fig)
 

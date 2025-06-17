@@ -306,7 +306,7 @@ Page_EDA      = st.Page(EDA,      title="EDA",     icon="📊", url_path="eda")
 # 네비게이션 실행
 # ---------------------
 PAGES = {
-    "Home": lambda: Home(login_page, register_page, findpw_page),
+    "Home": lambda: Home(Page_Login, Page_Register, Page_FindPW),
     "EDA": lambda: EDA(),
 }
 

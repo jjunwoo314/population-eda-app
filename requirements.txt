@@ -3,6 +3,3 @@ pandas
 matplotlib
 seaborn
 numpy
-pyrebase4==4.5.0
-google-cloud-storage
-setuptools
